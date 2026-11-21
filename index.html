@@ -90,6 +90,45 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
 .check-seen      { color:#1d4ed8; font-size:14px; margin-left:4px; letter-spacing:-2px; }
 .check-delivered { color:#71717a; font-size:14px; margin-left:4px; letter-spacing:-2px; }
 .check-pending   { color:#d4d4d8; font-size:14px; margin-left:4px; }
+
+/* ===== Tarjeta de notificaciones ===== */
+.push-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+  transition: border-color .2s, background .2s;
+}
+.push-card-icon { font-size: 22px; flex-shrink: 0; }
+.push-card-body { flex: 1; min-width: 0; }
+.push-card-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; color: var(--text); }
+.push-card-subtitle { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.push-card-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.push-card-btn:hover { background: var(--bg2); }
+.push-card-btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.push-card-btn.primary:hover { background: #2f2f33; }
+.push-card-btn:disabled { opacity: .5; cursor: not-allowed; }
+.push-card.active { border-color: #a7f3d0; background: #ecfdf5; }
+.push-card.active .push-card-title { color: #047857; }
+.push-card.blocked { border-color: #fecaca; background: #fef2f2; }
+.push-card.blocked .push-card-title { color: #b91c1c; }
 </style>
 </head>
 <body>
@@ -181,6 +220,17 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
   <div id="pending-banner" class="banner-pending" style="display:none">
     ⏳ Tu solicitud de rol <strong id="pending-role-name">—</strong> está pendiente de aprobación del administrador.
   </div>
+
+  <!-- Tarjeta de notificaciones -->
+  <div id="push-card" class="push-card" style="display:none">
+    <div class="push-card-icon" id="push-icon">🔔</div>
+    <div class="push-card-body">
+      <div class="push-card-title" id="push-title">Notificaciones</div>
+      <div class="push-card-subtitle" id="push-subtitle">Verificando…</div>
+    </div>
+    <button class="push-card-btn" id="push-btn">…</button>
+  </div>
+
   <div id="admin-section" style="display:none;margin-bottom:20px">
     <button class="btn btn-ghost" onclick="showView('view-admin');loadAdminTab('asg');">⚙️ Panel de administrador</button>
   </div>
@@ -300,7 +350,7 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
   auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
 });
 
-// ⚠️ Exponer cliente globalmente (mata el warning de GoTrueClient en scripts de debug)
+// Exponer globalmente para debug
 window.sb = sb;
 
 // ============================================================
@@ -334,7 +384,7 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function roleLabel(r){return({admin:'Administrador',anciano:'Anciano',siervo_ministerial:'Siervo ministerial',publicador:'Publicador'})[r]||r;}
 
 // ============================================================
-//  PUSH (VAPID) — versión robusta con ruta relativa
+//  PUSH (VAPID)
 // ============================================================
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -357,13 +407,11 @@ async function subscribeToPush(){
       return;
     }
 
-    // 1) Registrar SW con ruta RELATIVA (funciona en raíz y subcarpetas como GitHub Pages)
     console.log('[push] registrando SW en ./sw.js');
     const registration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
     console.log('[push] SW registrado con scope:', registration.scope);
     await navigator.serviceWorker.ready;
 
-    // 2) Pedir permiso
     let permission = Notification.permission;
     if (permission === 'default') {
       permission = await Notification.requestPermission();
@@ -373,7 +421,6 @@ async function subscribeToPush(){
       return;
     }
 
-    // 3) Suscripción
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
       console.log('[push] creando nueva suscripción...');
@@ -386,7 +433,6 @@ async function subscribeToPush(){
       console.log('[push] suscripción existente reutilizada');
     }
 
-    // 4) Guardar en Supabase
     const sub = subscription.toJSON();
     const { error } = await sb.from('push_subscriptions').upsert({
       person_id: me.id,
@@ -406,6 +452,167 @@ async function subscribeToPush(){
   } catch (e) {
     console.error('[push] error al suscribir:', e);
   }
+}
+
+// ============================================================
+//  TARJETA DE ESTADO PUSH (para todos los roles)
+// ============================================================
+async function checkPushState() {
+  if (!('Notification' in window) || !('PushManager' in window) || !('serviceWorker' in navigator)) {
+    return 'unsupported';
+  }
+  if (Notification.permission === 'denied') return 'blocked';
+  if (Notification.permission === 'default') return 'default';
+
+  const reg = await navigator.serviceWorker.getRegistration();
+  if (!reg) return 'no-sw';
+  const sub = await reg.pushManager.getSubscription();
+  if (!sub) return 'no-sub';
+
+  if (!me?.id) return 'no-session';
+  const { data } = await sb.from('push_subscriptions')
+    .select('id').eq('person_id', me.id).limit(1);
+  if (!data || data.length === 0) return 'no-db';
+
+  return 'active';
+}
+
+async function renderPushCard() {
+  const card = $('push-card');
+  if (!card) return;
+
+  const state = await checkPushState();
+  const icon = $('push-icon');
+  const title = $('push-title');
+  const subtitle = $('push-subtitle');
+  const btn = $('push-btn');
+
+  card.style.display = 'flex';
+  card.classList.remove('active', 'blocked');
+  btn.disabled = false;
+  btn.style.display = 'inline-block';
+  btn.className = 'push-card-btn';
+
+  switch (state) {
+    case 'unsupported':
+      icon.textContent = '🚫';
+      title.textContent = 'No compatible';
+      subtitle.textContent = 'Este navegador no soporta notificaciones push';
+      btn.style.display = 'none';
+      break;
+
+    case 'blocked':
+      card.classList.add('blocked');
+      icon.textContent = '🔕';
+      title.textContent = 'Notificaciones bloqueadas';
+      subtitle.textContent = 'Debes permitirlas desde la configuración del navegador';
+      btn.textContent = 'Cómo activar';
+      btn.onclick = showBlockedInstructions;
+      break;
+
+    case 'default':
+      icon.textContent = '🔔';
+      title.textContent = 'Notificaciones desactivadas';
+      subtitle.textContent = 'Actívalas para recibir recordatorios automáticos';
+      btn.textContent = 'Activar';
+      btn.classList.add('primary');
+      btn.onclick = enablePush;
+      break;
+
+    case 'no-sw':
+    case 'no-sub':
+    case 'no-db':
+      icon.textContent = '🔔';
+      title.textContent = 'Notificaciones pendientes';
+      subtitle.textContent = 'Toca para activar en este dispositivo';
+      btn.textContent = 'Activar';
+      btn.classList.add('primary');
+      btn.onclick = enablePush;
+      break;
+
+    case 'active':
+      card.classList.add('active');
+      icon.textContent = '✅';
+      title.textContent = 'Notificaciones activas';
+      subtitle.textContent = 'Recibirás recordatorios automáticos';
+      btn.textContent = 'Desactivar';
+      btn.onclick = disablePush;
+      break;
+  }
+}
+
+async function enablePush() {
+  const btn = $('push-btn');
+  btn.disabled = true;
+  btn.textContent = 'Activando…';
+
+  try {
+    await sb.from('people').update({ push_enabled: true }).eq('id', me.id);
+    me.profile.push_enabled = true;
+
+    pushSubscribed = false;
+    await subscribeToPush();
+
+    const state = await checkPushState();
+    if (state === 'active') {
+      toast('Notificaciones activadas', 'success');
+    } else if (state === 'blocked') {
+      toast('Permiso bloqueado en el navegador', 'error');
+    } else {
+      toast('No se pudo completar la suscripción', 'error');
+    }
+  } catch (e) {
+    toast('Error: ' + (e.message || e), 'error');
+  } finally {
+    btn.disabled = false;
+    await renderPushCard();
+  }
+}
+
+async function disablePush() {
+  if (!confirm('¿Desactivar las notificaciones push?\n\nNo recibirás recordatorios automáticos en este dispositivo.')) {
+    return;
+  }
+
+  const btn = $('push-btn');
+  btn.disabled = true;
+  btn.textContent = 'Desactivando…';
+
+  try {
+    await sb.from('people').update({ push_enabled: false }).eq('id', me.id);
+    me.profile.push_enabled = false;
+
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (reg) {
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) await sub.unsubscribe();
+    }
+    await sb.from('push_subscriptions').delete().eq('person_id', me.id);
+
+    pushSubscribed = false;
+    toast('Notificaciones desactivadas', 'success');
+  } catch (e) {
+    toast('Error: ' + (e.message || e), 'error');
+  } finally {
+    btn.disabled = false;
+    await renderPushCard();
+  }
+}
+
+function showBlockedInstructions() {
+  const esiOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const instrucciones = esiOS
+    ? 'Para activar las notificaciones en iPhone:\n\n' +
+      '1. Abre la app desde el ícono en tu pantalla de inicio (no desde Safari)\n' +
+      '2. Ajustes → [Nombre de la app] → Notificaciones → Permitir\n' +
+      '3. Recarga la app\n\n' +
+      'Si no la tienes instalada: Safari → Compartir → Añadir a pantalla de inicio'
+    : 'Para activar las notificaciones:\n\n' +
+      '1. Toca el ícono del candado/ajustes junto a la URL\n' +
+      '2. Notificaciones → Permitir\n' +
+      '3. Recarga la página\n\n' +
+      'Si estás en Brave, activa también: brave://settings/privacy → "Use Google services for push messaging"';
+  alert(instrucciones);
 }
 
 // ============================================================
@@ -573,7 +780,13 @@ async function bootUser(){
     hideLoader();
     showView('view-dashboard');
 
-    subscribeToPush().catch(()=>{});
+    // Solo auto-suscribir si el usuario NO la desactivó manualmente
+    if (me.profile.push_enabled !== false) {
+      subscribeToPush().catch(()=>{});
+    }
+
+    // Renderizar tarjeta con el estado actual
+    renderPushCard().catch(()=>{});
   } catch(err){
     console.error('bootUser error:',err);
     hideLoader();
@@ -601,6 +814,8 @@ async function loadDashboard(){
   if(error){list.innerHTML='<p class="empty">'+esc(error.message)+'</p>';return;}
   if(!asgs||!asgs.length){
     list.innerHTML='<div class="empty"><div class="empty-icon">📅</div><p>No tienes asignaciones próximas</p></div>';
+    // Actualizar tarjeta push igual
+    renderPushCard().catch(()=>{});
     return;
   }
 
@@ -619,6 +834,9 @@ async function loadDashboard(){
 
   list.innerHTML = enriched.map(renderAsgCard).join('');
   observeCardsForSeen();
+
+  // Actualizar tarjeta de notificaciones
+  renderPushCard().catch(()=>{});
 }
 
 function renderAsgCard(a){
