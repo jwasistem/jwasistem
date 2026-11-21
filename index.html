@@ -91,7 +91,7 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
 .check-delivered { color:#71717a; font-size:14px; margin-left:4px; letter-spacing:-2px; }
 .check-pending   { color:#d4d4d8; font-size:14px; margin-left:4px; }
 
-/* ===== Tarjeta de notificaciones ===== */
+/* Tarjeta de notificaciones */
 .push-card {
   display: flex;
   align-items: center;
@@ -221,7 +221,6 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
     ⏳ Tu solicitud de rol <strong id="pending-role-name">—</strong> está pendiente de aprobación del administrador.
   </div>
 
-  <!-- Tarjeta de notificaciones -->
   <div id="push-card" class="push-card" style="display:none">
     <div class="push-card-icon" id="push-icon">🔔</div>
     <div class="push-card-body">
@@ -343,14 +342,11 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
 // ============================================================
 const SUPABASE_URL='https://glgostqeocepewpsqsbm.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsZ29zdHFlb2NlcGV3cHNxc2JtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUyNjUwODQsImV4cCI6MjExMDg0MTA4NH0.pbBk4KZV3TBnU4WXoXFOWD-P4AsZZeGMG_5oXcbS3Z4';
-
 const VAPID_PUBLIC_KEY = 'BIJjPjwCCemKuo2ZIVRIdJT34iPC30mOgxYt7sFt8Ad_QYtJZF_Dry3635m_paLAhmYogcOaJS4cnkz4eJtYAIQ';
 
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
   auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
 });
-
-// Exponer globalmente para debug
 window.sb = sb;
 
 // ============================================================
@@ -366,7 +362,6 @@ let lastAccessLink='';
 let lastAccessName='';
 let pushSubscribed=false;
 
-// Helpers
 const $=id=>document.getElementById(id);
 const showView=id=>{document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));$(id).classList.add('active');window.scrollTo(0,0);};
 const showLoader=()=>$('loader').classList.remove('hidden');
@@ -455,7 +450,34 @@ async function subscribeToPush(){
 }
 
 // ============================================================
-//  TARJETA DE ESTADO PUSH (para todos los roles)
+//  PUSH INMEDIATO (al crear/editar) + BOTÓN 🔔
+// ============================================================
+async function sendImmediatePush(assignmentId) {
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) throw new Error('sin sesión');
+
+    const res = await fetch(SUPABASE_URL + '/functions/v1/send-push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + session.access_token
+      },
+      body: JSON.stringify({ assignment_id: assignmentId })
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+    console.log('[immediate push] resultado:', json);
+    return json;
+  } catch (e) {
+    console.error('[sendImmediatePush]', e);
+    throw e;
+  }
+}
+
+// ============================================================
+//  TARJETA DE ESTADO PUSH
 // ============================================================
 async function checkPushState() {
   if (!('Notification' in window) || !('PushManager' in window) || !('serviceWorker' in navigator)) {
@@ -545,22 +567,15 @@ async function enablePush() {
   const btn = $('push-btn');
   btn.disabled = true;
   btn.textContent = 'Activando…';
-
   try {
     await sb.from('people').update({ push_enabled: true }).eq('id', me.id);
     me.profile.push_enabled = true;
-
     pushSubscribed = false;
     await subscribeToPush();
-
     const state = await checkPushState();
-    if (state === 'active') {
-      toast('Notificaciones activadas', 'success');
-    } else if (state === 'blocked') {
-      toast('Permiso bloqueado en el navegador', 'error');
-    } else {
-      toast('No se pudo completar la suscripción', 'error');
-    }
+    if (state === 'active') toast('Notificaciones activadas', 'success');
+    else if (state === 'blocked') toast('Permiso bloqueado en el navegador', 'error');
+    else toast('No se pudo completar la suscripción', 'error');
   } catch (e) {
     toast('Error: ' + (e.message || e), 'error');
   } finally {
@@ -570,25 +585,19 @@ async function enablePush() {
 }
 
 async function disablePush() {
-  if (!confirm('¿Desactivar las notificaciones push?\n\nNo recibirás recordatorios automáticos en este dispositivo.')) {
-    return;
-  }
-
+  if (!confirm('¿Desactivar las notificaciones push?\n\nNo recibirás recordatorios automáticos en este dispositivo.')) return;
   const btn = $('push-btn');
   btn.disabled = true;
   btn.textContent = 'Desactivando…';
-
   try {
     await sb.from('people').update({ push_enabled: false }).eq('id', me.id);
     me.profile.push_enabled = false;
-
     const reg = await navigator.serviceWorker.getRegistration();
     if (reg) {
       const sub = await reg.pushManager.getSubscription();
       if (sub) await sub.unsubscribe();
     }
     await sb.from('push_subscriptions').delete().eq('person_id', me.id);
-
     pushSubscribed = false;
     toast('Notificaciones desactivadas', 'success');
   } catch (e) {
@@ -780,12 +789,9 @@ async function bootUser(){
     hideLoader();
     showView('view-dashboard');
 
-    // Solo auto-suscribir si el usuario NO la desactivó manualmente
     if (me.profile.push_enabled !== false) {
       subscribeToPush().catch(()=>{});
     }
-
-    // Renderizar tarjeta con el estado actual
     renderPushCard().catch(()=>{});
   } catch(err){
     console.error('bootUser error:',err);
@@ -814,7 +820,6 @@ async function loadDashboard(){
   if(error){list.innerHTML='<p class="empty">'+esc(error.message)+'</p>';return;}
   if(!asgs||!asgs.length){
     list.innerHTML='<div class="empty"><div class="empty-icon">📅</div><p>No tienes asignaciones próximas</p></div>';
-    // Actualizar tarjeta push igual
     renderPushCard().catch(()=>{});
     return;
   }
@@ -834,8 +839,6 @@ async function loadDashboard(){
 
   list.innerHTML = enriched.map(renderAsgCard).join('');
   observeCardsForSeen();
-
-  // Actualizar tarjeta de notificaciones
   renderPushCard().catch(()=>{});
 }
 
@@ -923,7 +926,10 @@ async function loadAdminAsgs(){
           <div class="card-title" title="${titleAttr}">${esc(a.title)} ${check}</div>
           <div class="card-meta">${esc(a.full_name)} · ${a.meeting_date}${a.meeting_time?' '+a.meeting_time.slice(0,5):''}</div>
         </div>
-        <button class="btn btn-ghost btn-sm" data-id="${a.id}">Editar</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" data-notify="${a.id}" title="Enviar notificación ahora">🔔</button>
+          <button class="btn btn-ghost btn-sm" data-id="${a.id}">Editar</button>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -932,6 +938,26 @@ async function loadAdminAsgs(){
     btn.onclick=()=>{
       const a=asgs.find(x=>x.id===btn.dataset.id);
       if(a) editAsg(a);
+    };
+  });
+
+  el.querySelectorAll('button[data-notify]').forEach(btn=>{
+    btn.onclick=async ()=>{
+      if (!confirm('¿Enviar notificación push ahora a esta persona?')) return;
+      btn.disabled = true;
+      btn.textContent = '⏳';
+      try {
+        const r = await sendImmediatePush(btn.dataset.notify);
+        if (r.sent > 0) toast(`Enviado a ${r.sent} dispositivo(s)`, 'success');
+        else if (r.total === 0) toast('La persona no tiene notificaciones activas', 'error');
+        else toast('Falló: ' + (r.errores?.[0]?.error || 'sin detalles'), 'error');
+        loadAdminAsgs();
+      } catch (e) {
+        toast('Error: ' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔔';
+      }
     };
   });
 }
@@ -1149,14 +1175,35 @@ $('form-asg').addEventListener('submit',async e=>{
     notes:$('asg-notes').value.trim()||null, created_by:me.id
   };
   const b=$('btn-save-asg'); b.disabled=true; b.textContent='Guardando…';
-  let error;
-  if(id) ({error}=await sb.from('assignments').update(payload).eq('id',id));
-  else ({error}=await sb.from('assignments').insert(payload));
+  let error, savedId = id;
+  if(id) {
+    ({error}=await sb.from('assignments').update(payload).eq('id',id));
+  } else {
+    const {data, error: err} = await sb.from('assignments').insert(payload).select().single();
+    error = err;
+    if (data) savedId = data.id;
+  }
   b.disabled=false; b.textContent='Guardar';
   if(error) return toast(error.message,'error');
   toast('Guardado','success');
   closeModal('modal-asg');
   loadAdminAsgs();
+
+  // 🔔 Push inmediato al publicador
+  if (savedId) {
+    try {
+      const result = await sendImmediatePush(savedId);
+      if (result.sent > 0) {
+        toast(`Notificación enviada (${result.sent} dispositivo${result.sent>1?'s':''})`, 'success');
+      } else if (result.total === 0) {
+        toast('La persona no tiene notificaciones activas', 'error');
+      } else if (result.errores?.length) {
+        toast('No se pudo enviar: ' + result.errores[0].error, 'error');
+      }
+    } catch (e) {
+      toast('Guardado. Error al enviar push', 'error');
+    }
+  }
 });
 
 // ============================================================
