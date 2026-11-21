@@ -66,6 +66,7 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
 .badge-inactive{background:#f4f4f5;color:#a1a1aa}
 .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
 .menu-btn{background:transparent;border:1px solid var(--line);padding:6px 12px;border-radius:8px;font-size:13px;color:var(--muted)}
+.menu-btn:hover{background:var(--bg2)}
 .tabs{display:flex;gap:4px;background:var(--bg2);border-radius:10px;padding:4px;margin-bottom:20px;overflow-x:auto}
 .tab{flex:1;min-width:80px;padding:8px;text-align:center;border-radius:7px;font-size:12px;font-weight:500;color:var(--muted);background:transparent;cursor:pointer;white-space:nowrap}
 .tab.active{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.04)}
@@ -129,21 +130,16 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
 .user-actions button.success { color: #047857; border-color: #a7f3d0; }
 .user-actions button.success:hover { background: #ecfdf5; }
 
-/* Tarjeta push */
-.push-card { display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px; margin-bottom:20px; box-shadow:var(--shadow); transition:border-color .2s, background .2s; }
-.push-card-icon { font-size: 22px; flex-shrink: 0; }
-.push-card-body { flex: 1; min-width: 0; }
-.push-card-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; color: var(--text); }
-.push-card-subtitle { font-size: 12px; color: var(--muted); line-height: 1.35; }
-.push-card-btn { padding:8px 14px; border-radius:8px; font-size:13px; font-weight:500; border:1px solid var(--line); background:var(--card); color:var(--text); cursor:pointer; white-space:nowrap; transition:all .15s; flex-shrink:0; }
-.push-card-btn:hover { background: var(--bg2); }
-.push-card-btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
-.push-card-btn.primary:hover { background: #2f2f33; }
-.push-card-btn:disabled { opacity: .5; cursor: not-allowed; }
-.push-card.active { border-color: #a7f3d0; background: #ecfdf5; }
-.push-card.active .push-card-title { color: #047857; }
-.push-card.blocked { border-color: #fecaca; background: #fef2f2; }
-.push-card.blocked .push-card-title { color: #b91c1c; }
+/* Tarjeta push y ajustes */
+.settings-card { display:flex; flex-direction: column; background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:18px; margin-bottom:16px; box-shadow:var(--shadow); }
+.settings-card-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; color: var(--text); }
+.settings-card-desc { font-size: 13px; color: var(--muted); line-height: 1.4; margin-bottom: 14px; }
+.settings-btn { padding:10px 14px; border-radius:8px; font-size:14px; font-weight:500; border:1px solid var(--line); background:var(--card); color:var(--text); cursor:pointer; transition:all .15s; width: 100%; text-align: center; }
+.settings-btn:hover { background: var(--bg2); }
+.settings-btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.settings-btn.primary:hover { background: #2f2f33; }
+.settings-btn.active { border-color: #a7f3d0; background: #ecfdf5; color: #047857; }
+.settings-btn.blocked { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
 </style>
 </head>
 <body>
@@ -230,26 +226,58 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
       <h1 style="font-size:20px;margin:0" id="user-name">—</h1>
       <p style="color:var(--muted);font-size:13px" id="user-role">—</p>
     </div>
-    <button class="menu-btn" onclick="logout()">Salir</button>
+    <div style="display:flex;gap:8px">
+      <button class="menu-btn" onclick="showView('view-settings');renderPushCard();">⚙️ Ajustes</button>
+      <button class="menu-btn" onclick="logout()">Salir</button>
+    </div>
   </div>
+  
   <div id="pending-banner" class="banner-pending" style="display:none">
     ⏳ Tu solicitud de rol <strong id="pending-role-name">—</strong> está pendiente de aprobación del administrador.
-  </div>
-
-  <div id="push-card" class="push-card" style="display:none">
-    <div class="push-card-icon" id="push-icon">🔔</div>
-    <div class="push-card-body">
-      <div class="push-card-title" id="push-title">Notificaciones</div>
-      <div class="push-card-subtitle" id="push-subtitle">Verificando…</div>
-    </div>
-    <button class="push-card-btn" id="push-btn">…</button>
   </div>
 
   <div id="admin-section" style="display:none;margin-bottom:20px">
     <button class="btn btn-ghost" onclick="showView('view-admin');loadAdminTab('asg');">⚙️ Panel de administrador</button>
   </div>
+  
   <h2 style="margin-bottom:12px">Mis asignaciones</h2>
   <div id="asg-list"></div>
+</div>
+
+<!-- CONFIGURACIÓN (SETTINGS) -->
+<div class="view" id="view-settings">
+  <div class="topbar">
+    <div>
+      <h1 style="font-size:20px;margin:0">Configuración</h1>
+      <p style="color:var(--muted);font-size:13px">Ajustes de la app y notificaciones</p>
+    </div>
+    <button class="menu-btn" onclick="showView('view-dashboard')">Volver</button>
+  </div>
+
+  <!-- Botón Instalar PWA -->
+  <div class="settings-card" id="pwa-card" style="display:none">
+    <div class="settings-card-title">📱 Instalar Aplicación</div>
+    <div class="settings-card-desc">Instala la app en tu pantalla de inicio para acceder más rápido y a pantalla completa.</div>
+    <button class="settings-btn primary" id="btn-install-pwa" onclick="installPwa()">Instalar App</button>
+  </div>
+
+  <!-- Tarjeta Push (Movida aquí) -->
+  <div id="push-card" class="settings-card" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+      <div id="push-icon" style="font-size:20px">🔔</div>
+      <div>
+        <div class="settings-card-title" id="push-title">Notificaciones</div>
+        <div class="settings-card-desc" id="push-subtitle" style="margin-bottom:0">Verificando…</div>
+      </div>
+    </div>
+    <button class="settings-btn" id="push-btn" style="margin-top:12px">…</button>
+  </div>
+
+  <!-- Info de iOS -->
+  <div class="banner-info" id="ios-install-hint" style="display:none">
+    <strong>💡 Instrucciones para iPhone:</strong><br>
+    Toca el botón <strong>Compartir</strong> (el cuadro con la flecha hacia arriba en Safari) y selecciona <strong>"Añadir a la pantalla de inicio"</strong>.
+  </div>
 </div>
 
 <!-- ADMIN -->
@@ -398,9 +426,18 @@ let currentAdminTab='asg';
 let lastAccessLink='';
 let lastAccessName='';
 let pushSubscribed=false;
+let deferredPrompt=null;
 
 const $=id=>document.getElementById(id);
-const showView=id=>{document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));$(id).classList.add('active');window.scrollTo(0,0);};
+const showView=id=>{
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  $(id).classList.add('active');
+  window.scrollTo(0,0);
+  if(id==='view-settings'){
+    renderPushCard();
+    checkPwaInstallability();
+  }
+};
 const showLoader=()=>$('loader').classList.remove('hidden');
 const hideLoader=()=>$('loader').classList.add('hidden');
 const openModal=id=>$(id).classList.add('active');
@@ -414,6 +451,58 @@ function toast(msg,type=''){
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function roleLabel(r){return({admin:'Administrador',anciano:'Anciano',siervo_ministerial:'Siervo ministerial',publicador:'Publicador'})[r]||r;}
+
+// ============================================================
+//  PWA - INSTALACIÓN
+// ============================================================
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  checkPwaInstallability();
+});
+
+window.addEventListener('appinstalled', () => {
+  $('pwa-card').style.display = 'none';
+  deferredPrompt = null;
+  toast('App instalada con éxito', 'success');
+});
+
+function checkPwaInstallability() {
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  const pwaCard = $('pwa-card');
+  const iosHint = $('ios-install-hint');
+  
+  if (isStandalone) {
+    pwaCard.style.display = 'none';
+    iosHint.style.display = 'none';
+    return;
+  }
+
+  // Si es iOS, mostrar instrucciones manuales
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (isIOS) {
+    pwaCard.style.display = 'none';
+    iosHint.style.display = 'block';
+    return;
+  }
+
+  // Si no es iOS, mostrar el botón si el navegador lo soporta
+  if (deferredPrompt) {
+    pwaCard.style.display = 'block';
+  } else {
+    pwaCard.style.display = 'none';
+  }
+}
+
+async function installPwa() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if (outcome === 'accepted') {
+    $('pwa-card').style.display = 'none';
+  }
+  deferredPrompt = null;
+}
 
 // ============================================================
 //  PWA - REGISTRO DEL SERVICE WORKER
@@ -445,7 +534,6 @@ async function subscribeToPush(){
     if (Notification.permission === 'denied') return;
 
     const registration = await navigator.serviceWorker.ready;
-
     let permission = Notification.permission;
     if (permission === 'default') permission = await Notification.requestPermission();
     if (permission !== 'granted') return;
@@ -515,31 +603,30 @@ async function renderPushCard() {
   const state = await checkPushState();
   const icon = $('push-icon'), title = $('push-title'), subtitle = $('push-subtitle'), btn = $('push-btn');
   card.style.display = 'flex';
-  card.classList.remove('active', 'blocked');
   btn.disabled = false;
-  btn.style.display = 'inline-block';
-  btn.className = 'push-card-btn';
+  btn.className = 'settings-btn';
+  btn.style.display = 'block';
 
   switch (state) {
     case 'unsupported':
       icon.textContent = '🚫'; title.textContent = 'No compatible';
-      subtitle.textContent = 'Este navegador no soporta push'; btn.style.display = 'none'; break;
+      subtitle.textContent = 'Este navegador no soporta notificaciones'; btn.style.display = 'none'; break;
     case 'blocked':
       card.classList.add('blocked'); icon.textContent = '🔕'; title.textContent = 'Notificaciones bloqueadas';
-      subtitle.textContent = 'Permítelas en la configuración del navegador';
-      btn.textContent = 'Cómo activar'; btn.onclick = showBlockedInstructions; break;
+      subtitle.textContent = 'Permítelas en la configuración de tu navegador';
+      btn.textContent = 'Cómo activar'; btn.classList.add('blocked'); btn.onclick = showBlockedInstructions; break;
     case 'default':
       icon.textContent = '🔔'; title.textContent = 'Notificaciones desactivadas';
       subtitle.textContent = 'Actívalas para recibir recordatorios';
-      btn.textContent = 'Activar'; btn.classList.add('primary'); btn.onclick = enablePush; break;
+      btn.textContent = 'Activar notificaciones'; btn.classList.add('primary'); btn.onclick = enablePush; break;
     case 'no-sw': case 'no-sub': case 'no-db':
       icon.textContent = '🔔'; title.textContent = 'Notificaciones pendientes';
       subtitle.textContent = 'Toca para activar en este dispositivo';
-      btn.textContent = 'Activar'; btn.classList.add('primary'); btn.onclick = enablePush; break;
+      btn.textContent = 'Activar notificaciones'; btn.classList.add('primary'); btn.onclick = enablePush; break;
     case 'active':
       card.classList.add('active'); icon.textContent = '✅'; title.textContent = 'Notificaciones activas';
       subtitle.textContent = 'Recibirás recordatorios automáticos';
-      btn.textContent = 'Desactivar'; btn.onclick = disablePush; break;
+      btn.textContent = 'Desactivar notificaciones'; btn.classList.add('active'); btn.onclick = disablePush; break;
   }
 }
 
@@ -576,8 +663,8 @@ async function disablePush() {
 function showBlockedInstructions() {
   const esiOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const t = esiOS
-    ? 'iPhone:\n1. Instala la app (Compartir → Añadir a pantalla de inicio)\n2. Ábrela desde el ícono\n3. Ajustes → [App] → Notificaciones → Permitir'
-    : 'Android/PC:\n1. Candado junto a la URL → Notificaciones → Permitir\n2. Recarga\n3. En Brave: brave://settings/privacy → "Use Google services for push messaging"';
+    ? 'iPhone:\n1. Ajustes del teléfono\n2. Notificaciones\n3. Busca la app (si la instalaste) o Safari\n4. Permitir notificaciones'
+    : 'Android/PC:\n1. Candado junto a la URL → Notificaciones → Permitir\n2. Recarga la página\n3. En Brave: brave://settings/privacy → "Use Google services for push messaging"';
   alert(t);
 }
 
@@ -715,7 +802,7 @@ async function bootUser(){
     hideLoader();
     showView('view-dashboard');
     if (me.profile.push_enabled !== false) subscribeToPush().catch(()=>{});
-    renderPushCard().catch(()=>{});
+    checkPwaInstallability();
   } catch(err){
     console.error('bootUser error:',err);
     hideLoader(); toast('Error: '+(err?.message||err),'error');
@@ -742,7 +829,7 @@ async function loadDashboard(){
   if(error){list.innerHTML='<p class="empty">'+esc(error.message)+'</p>';return;}
   if(!asgs||!asgs.length){
     list.innerHTML='<div class="empty"><div class="empty-icon">📅</div><p>No tienes asignaciones próximas</p></div>';
-    renderPushCard().catch(()=>{}); return;
+    return;
   }
   const ids = asgs.map(a => a.id);
   const {data:receipts} = await sb.from('assignment_receipts').select('*').in('assignment_id', ids);
@@ -751,7 +838,6 @@ async function loadDashboard(){
   const enriched = asgs.map(a => ({ ...a, _delivered: !!receiptMap[a.id]?.delivered, _seen: !!receiptMap[a.id]?.seen }));
   list.innerHTML = enriched.map(renderAsgCard).join('');
   observeCardsForSeen();
-  renderPushCard().catch(()=>{});
 }
 
 function renderAsgCard(a){
@@ -950,7 +1036,7 @@ async function revokeAccess(id){
 }
 
 // ============================================================
-//  GESTIÓN DE USUARIOS (nuevo)
+//  GESTIÓN DE USUARIOS
 // ============================================================
 async function loadAdminUsers(){
   const {data,error}=await sb.from('people').select('*').order('is_active',{ascending:false}).order('full_name');
@@ -998,7 +1084,6 @@ async function loadAdminUsers(){
     </div>`;
   }).join('');
 
-  // Cambiar rol
   el.querySelectorAll('button[data-change]').forEach(btn=>{
     btn.onclick=async ()=>{
       const uid=btn.dataset.change;
@@ -1013,7 +1098,6 @@ async function loadAdminUsers(){
     };
   });
 
-  // Reset password
   el.querySelectorAll('button[data-reset-pwd]').forEach(btn=>{
     btn.onclick=()=>{
       const id=btn.dataset.resetPwd;
@@ -1027,7 +1111,6 @@ async function loadAdminUsers(){
     };
   });
 
-  // Revocar acceso
   el.querySelectorAll('button[data-revoke]').forEach(btn=>{
     btn.onclick=async ()=>{
       const id=btn.dataset.revoke;
@@ -1042,7 +1125,6 @@ async function loadAdminUsers(){
     };
   });
 
-  // Reactivar acceso
   el.querySelectorAll('button[data-reactivate]').forEach(btn=>{
     btn.onclick=async ()=>{
       const id=btn.dataset.reactivate;
@@ -1075,7 +1157,6 @@ $('form-pwd').addEventListener('submit',async e=>{
     b.disabled=false; b.textContent='Cambiar contraseña';
     if (error) return toast(error.message, 'error');
     toast('Contraseña actualizada', 'success');
-    // Mostrar la contraseña para que el admin la comparta
     setTimeout(() => {
       alert(`Contraseña actualizada correctamente.\n\nNueva contraseña: ${newPass}\n\nCompártela con la persona.`);
     }, 200);
