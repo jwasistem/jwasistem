@@ -1,48 +1,32 @@
-// sw.js — Service Worker para Push
-const SW_VERSION = '1.0.0';
-
-self.addEventListener('install', (event) => {
-  console.log('[SW] install', SW_VERSION);
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-  console.log('[SW] activate', SW_VERSION);
-  event.waitUntil(self.clients.claim());
-});
-
-self.addEventListener('push', (event) => {
-  console.log('[SW] push recibido');
-  let data = {};
-  try {
-    data = event.data ? event.data.json() : {};
-  } catch (e) {
-    data = { body: event.data ? event.data.text() : 'Nueva asignación' };
-  }
-
-  const title = data.title || 'Asignación teocrática';
-  const options = {
-    body: data.body || 'Tienes una asignación pendiente',
-    icon: data.icon || undefined,
-    badge: data.badge || undefined,
-    tag: data.tag || 'asg-' + Date.now(),
-    data: data.data || { url: '/' },
-    requireInteraction: false,
-    vibrate: [200, 100, 200]
-  };
-
-  event.waitUntil(self.registration.showNotification(title, options));
-});
-
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data?.url || '/';
+  
+  // Obtiene automáticamente la URL base de tu app (ej: https://jwasistem.github.io/jwasistem/)
+  const baseUrl = self.registration.scope;
+  
+  // Obtiene la URL enviada desde la notificación
+  let urlToOpen = event.notification.data?.url;
+  
+  // Si la URL es "/" o no existe, usamos la URL base para evitar ir a la raíz de GitHub Pages
+  if (!urlToOpen || urlToOpen === '/' || urlToOpen === location.origin) {
+      urlToOpen = baseUrl;
+  } else if (!urlToOpen.startsWith('http')) {
+      // Si es una ruta relativa, la unimos a la URL base
+      urlToOpen = new URL(urlToOpen, baseUrl).href;
+  }
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // 1. Si la app ya está abierta en alguna pestaña, solo la enfocamos
       for (const client of windowClients) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) return client.focus();
+        if (client.url.startsWith(baseUrl) && 'focus' in client) {
+          return client.focus();
+        }
       }
-      if (clients.openWindow) return clients.openWindow(urlToOpen);
+      // 2. Si no está abierta, abrimos una nueva pestaña con la URL correcta
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
     })
   );
 });
