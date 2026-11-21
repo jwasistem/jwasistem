@@ -23,7 +23,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 #loader.hidden{opacity:0;pointer-events:none}
 .spinner{width:32px;height:32px;border:2.5px solid var(--line);border-top-color:var(--text);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-#loader p{color:var(--muted);font-size:13px;letter-spacing:.02em}
+#loader p{color:var(--muted);font-size:13px}
 
 .view{min-height:100vh;display:none;padding:24px 20px 100px;max-width:480px;margin:0 auto;animation:fadeUp .35s}
 .view.active{display:block}
@@ -35,12 +35,9 @@ h2{font-size:18px;font-weight:600;letter-spacing:-.01em}
 .label{font-size:13px;font-weight:500;color:var(--muted);margin-bottom:6px;display:block}
 .field{margin-bottom:16px}
 
-input,select,textarea{
-  width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;
-  background:var(--card);font-family:inherit;font-size:15px;color:var(--text);
-  transition:border-color .15s,box-shadow .15s;
-}
+input,select,textarea{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-family:inherit;font-size:15px;color:var(--text);transition:border-color .15s,box-shadow .15s}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--text);box-shadow:0 0 0 3px rgba(24,24,27,.06)}
+input:disabled{background:var(--bg2);color:var(--muted)}
 
 button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
 .btn{width:100%;padding:13px;background:var(--accent);color:var(--accent-fg);border-radius:10px;font-size:15px;font-weight:500}
@@ -61,12 +58,13 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
 .badge-danger{background:#fef2f2;color:#b91c1c}
 .badge-info{background:#eff6ff;color:#1d4ed8}
 .badge-neutral{background:var(--bg2);color:var(--muted)}
+.badge-success{background:#ecfdf5;color:#047857}
 
 .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
 .menu-btn{background:transparent;border:1px solid var(--line);padding:6px 12px;border-radius:8px;font-size:13px;color:var(--muted)}
 
-.tabs{display:flex;gap:4px;background:var(--bg2);border-radius:10px;padding:4px;margin-bottom:20px}
-.tab{flex:1;padding:8px;text-align:center;border-radius:7px;font-size:14px;font-weight:500;color:var(--muted);background:transparent;cursor:pointer}
+.tabs{display:flex;gap:4px;background:var(--bg2);border-radius:10px;padding:4px;margin-bottom:20px;overflow-x:auto}
+.tab{flex:1;min-width:80px;padding:8px;text-align:center;border-radius:7px;font-size:12px;font-weight:500;color:var(--muted);background:transparent;cursor:pointer;white-space:nowrap}
 .tab.active{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.04)}
 
 .empty{text-align:center;padding:60px 20px;color:var(--muted)}
@@ -94,6 +92,13 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
 .asg-date{width:48px;flex-shrink:0;text-align:center}
 .asg-date-day{font-size:20px;font-weight:600;line-height:1}
 .asg-date-month{font-size:11px;color:var(--muted);text-transform:uppercase;margin-top:2px}
+
+.banner-pending{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 16px;font-size:13px;color:#92400e;margin-bottom:16px;line-height:1.4}
+.banner-invite{background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;font-size:14px;color:#1e40af;margin-bottom:20px;line-height:1.5}
+.hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4}
+.link-box{background:var(--bg2);border-radius:10px;padding:12px;font-family:ui-monospace,monospace;font-size:12px;color:var(--text);word-break:break-all;line-height:1.5;margin:12px 0}
+.copy-btn{background:var(--text);color:var(--accent-fg);padding:10px;border-radius:8px;font-size:13px;font-weight:500;width:100%;margin-top:8px}
+.action-row{display:flex;gap:8px;margin-top:12px}
 </style>
 </head>
 <body>
@@ -107,8 +112,8 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
     <h1>Asignaciones</h1>
     <p class="subtitle">Inicia sesión para ver tus asignaciones</p>
     <form id="form-login">
-      <div class="field"><label class="label">Correo</label><input type="email" id="login-email" required placeholder="tu@correo.com"></div>
-      <div class="field"><label class="label">Contraseña</label><input type="password" id="login-pass" required placeholder="••••••••"></div>
+      <div class="field"><label class="label">Correo</label><input type="email" id="login-email" required placeholder="tu@correo.com" autocomplete="email"></div>
+      <div class="field"><label class="label">Contraseña</label><input type="password" id="login-pass" required placeholder="••••••••" autocomplete="current-password"></div>
       <button type="submit" class="btn" id="btn-login">Entrar</button>
     </form>
     <div class="link-tabs">
@@ -124,15 +129,45 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
     <h1>Crear cuenta</h1>
     <p class="subtitle">Regístrate para recibir tus asignaciones</p>
     <form id="form-signup">
-      <div class="field"><label class="label">Nombre completo</label><input type="text" id="su-name" required placeholder="Juan Pérez"></div>
-      <div class="field"><label class="label">Correo</label><input type="email" id="su-email" required placeholder="tu@correo.com"></div>
-      <div class="field"><label class="label">Teléfono (opcional)</label><input type="tel" id="su-phone" placeholder="+591 70000000"></div>
-      <div class="field"><label class="label">Contraseña</label><input type="password" id="su-pass" required minlength="6" placeholder="Mínimo 6 caracteres"></div>
+      <div class="field"><label class="label">Nombre completo</label><input type="text" id="su-name" required placeholder="Juan Pérez" autocomplete="name"></div>
+      <div class="field"><label class="label">Correo</label><input type="email" id="su-email" required placeholder="tu@correo.com" autocomplete="email"></div>
+      <div class="field"><label class="label">Teléfono (opcional)</label><input type="tel" id="su-phone" placeholder="+591 70000000" autocomplete="tel"></div>
+      <div class="field"><label class="label">Contraseña</label><input type="password" id="su-pass" required minlength="6" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+      <div class="field">
+        <label class="label">Rol que solicitas</label>
+        <select id="su-role">
+          <option value="publicador">Publicador (entrada directa)</option>
+          <option value="siervo_ministerial">Siervo ministerial (requiere aprobación)</option>
+          <option value="anciano">Anciano (requiere aprobación)</option>
+          <option value="admin">Administrador (requiere aprobación del admin maestro)</option>
+        </select>
+        <p class="hint">Si solicitas siervo, anciano o admin, entrarás como publicador mientras el administrador revisa tu solicitud.</p>
+      </div>
       <button type="submit" class="btn" id="btn-signup">Crear cuenta</button>
     </form>
     <div class="link-tabs">
       <a onclick="switchAuth('login')">Iniciar sesión</a>
       <a class="active" onclick="switchAuth('signup')">Crear cuenta</a>
+    </div>
+  </div>
+</div>
+
+<!-- INVITE (acceso por URL) -->
+<div class="view" id="view-invite">
+  <div style="padding-top:40px">
+    <h1>Acceso por invitación</h1>
+    <p class="subtitle">Completa tu registro para entrar</p>
+    <div class="banner-invite" id="invite-banner">Cargando invitación…</div>
+    <form id="form-invite">
+      <input type="hidden" id="inv-token">
+      <div class="field"><label class="label">Nombre completo</label><input type="text" id="inv-name" required disabled></div>
+      <div class="field"><label class="label">Correo</label><input type="email" id="inv-email" required disabled></div>
+      <div class="field"><label class="label">Rol asignado</label><input type="text" id="inv-role" disabled></div>
+      <div class="field"><label class="label">Elige una contraseña</label><input type="password" id="inv-pass" required minlength="6" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+      <button type="submit" class="btn" id="btn-invite">Crear mi cuenta</button>
+    </form>
+    <div class="link-tabs">
+      <a onclick="cancelInvite()">Volver al inicio</a>
     </div>
   </div>
 </div>
@@ -146,8 +181,11 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
     </div>
     <button class="menu-btn" onclick="logout()">Salir</button>
   </div>
+  <div id="pending-banner" class="banner-pending" style="display:none">
+    ⏳ Tu solicitud de rol <strong id="pending-role-name">—</strong> está pendiente de aprobación del administrador. Mientras tanto puedes usar la app como publicador.
+  </div>
   <div id="admin-section" style="display:none;margin-bottom:20px">
-    <button class="btn btn-ghost" onclick="showView('view-admin')">⚙️ Panel de administrador</button>
+    <button class="btn btn-ghost" onclick="showView('view-admin');loadAdminTab('asg');">⚙️ Panel de administrador</button>
   </div>
   <h2 style="margin-bottom:12px">Mis asignaciones</h2>
   <div id="asg-list"></div>
@@ -158,20 +196,27 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
   <div class="topbar">
     <div>
       <h1 style="font-size:20px;margin:0">Panel admin</h1>
-      <p style="color:var(--muted);font-size:13px">Gestión de asignaciones</p>
+      <p style="color:var(--muted);font-size:13px">Gestión completa</p>
     </div>
     <button class="menu-btn" onclick="showView('view-dashboard')">Volver</button>
   </div>
+
   <div class="tabs">
-    <div class="tab active" onclick="switchAdminTab('asg')">Asignaciones</div>
-    <div class="tab" onclick="switchAdminTab('people')">Personas</div>
+    <div class="tab active" data-tab="asg" onclick="loadAdminTab('asg')">Asignaciones</div>
+    <div class="tab" data-tab="users" onclick="loadAdminTab('users')">Usuarios</div>
+    <div class="tab" data-tab="req" onclick="loadAdminTab('req')">Solicitudes <span id="req-count"></span></div>
+    <div class="tab" data-tab="inv" onclick="loadAdminTab('inv')">Invitaciones</div>
   </div>
+
   <div id="admin-tab-asg"><div id="admin-asg-list"></div></div>
-  <div id="admin-tab-people" style="display:none"><div id="admin-people-list"></div></div>
-  <button class="fab" onclick="openNewAssignment()">+</button>
+  <div id="admin-tab-users" style="display:none"><div id="admin-users-list"></div></div>
+  <div id="admin-tab-req" style="display:none"><div id="admin-req-list"></div></div>
+  <div id="admin-tab-inv" style="display:none"><div id="admin-inv-list"></div></div>
+
+  <button class="fab" id="admin-fab" onclick="onFabClick()">+</button>
 </div>
 
-<!-- MODAL -->
+<!-- MODAL ASIGNACIÓN -->
 <div class="modal-bg" id="modal-asg">
   <div class="modal">
     <div class="modal-header">
@@ -201,15 +246,54 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
   </div>
 </div>
 
+<!-- MODAL INVITACIÓN -->
+<div class="modal-bg" id="modal-inv">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-inv-title">Nueva invitación</h2>
+      <button class="close-btn" onclick="closeModal('modal-inv')">×</button>
+    </div>
+    <div id="inv-form-wrap">
+      <form id="form-inv-create">
+        <div class="field"><label class="label">Nombre completo</label><input type="text" id="inv-create-name" required placeholder="Juan Pérez"></div>
+        <div class="field"><label class="label">Correo</label><input type="email" id="inv-create-email" required placeholder="juan@correo.com"></div>
+        <div class="field"><label class="label">Rol a asignar</label>
+          <select id="inv-create-role">
+            <option value="publicador">Publicador</option>
+            <option value="siervo_ministerial">Siervo ministerial</option>
+            <option value="anciano">Anciano</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+        <button type="submit" class="btn" id="btn-create-inv">Generar link</button>
+      </form>
+    </div>
+    <div id="inv-result-wrap" style="display:none">
+      <p style="margin-bottom:8px;color:var(--muted);font-size:14px">Comparte este link con la persona:</p>
+      <div class="link-box" id="inv-result-link"></div>
+      <button class="copy-btn" onclick="copyInviteLink()">📋 Copiar link</button>
+      <button class="btn btn-ghost" style="margin-top:12px" onclick="closeModal('modal-inv')">Listo</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============================================================
 const SUPABASE_URL='https://glgostqeocepewpsqsbm.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsZ29zdHFlb2NlcGV3cHNxc2JtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUyNjUwODQsImV4cCI6MjExMDg0MTA4NH0.pbBk4KZV3TBnU4WXoXFOWD-P4AsZZeGMG_5oXcbS3Z4';
-const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
+  auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+});
 
-let me=null, profilesCache=[];
+let me=null;
+let profilesCache=[];
+let booting=false;
+let realtimeReady=false;
+let realtimeChannels=[];
+let currentAdminTab='asg';
+let lastInviteLink='';
 
-// UI
+// Helpers
 const $=id=>document.getElementById(id);
 const showView=id=>{document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));$(id).classList.add('active');window.scrollTo(0,0);};
 const showLoader=()=>$('loader').classList.remove('hidden');
@@ -227,7 +311,68 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function roleLabel(r){return({admin:'Administrador',anciano:'Anciano',siervo_ministerial:'Siervo ministerial',publicador:'Publicador'})[r]||r;}
 function switchAuth(w){showView(w==='login'?'view-login':'view-signup');}
 
-// AUTH
+// ============================================================
+//  INVITE FLOW (acceso por URL)
+// ============================================================
+function getInviteTokenFromUrl(){
+  const p=new URLSearchParams(location.search);
+  return p.get('invite');
+}
+function clearInviteFromUrl(){
+  const url=new URL(location.href);
+  url.searchParams.delete('invite');
+  history.replaceState({},'',url.pathname+url.search);
+}
+async function tryInviteFlow(){
+  const token=getInviteTokenFromUrl();
+  if(!token) return false;
+
+  showLoader();
+  const {data,error}=await sb.rpc('validate_invitation',{p_token:token});
+  hideLoader();
+
+  if(error || !data || !data.length || !data[0].valid){
+    toast('Invitación inválida o expirada','error');
+    clearInviteFromUrl();
+    return false;
+  }
+  const inv=data[0];
+  $('inv-token').value=token;
+  $('inv-name').value=inv.full_name;
+  $('inv-email').value=inv.email;
+  $('inv-role').value=roleLabel(inv.role);
+  $('invite-banner').innerHTML=`Hola <strong>${esc(inv.full_name)}</strong>, has sido invitado como <strong>${roleLabel(inv.role)}</strong>. Solo elige una contraseña y listo.`;
+  showView('view-invite');
+  return true;
+}
+function cancelInvite(){
+  clearInviteFromUrl();
+  showView('view-login');
+}
+
+$('form-invite').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const b=$('btn-invite'); b.disabled=true; b.textContent='Creando…';
+  const token=$('inv-token').value;
+  const email=$('inv-email').value;
+  const pass=$('inv-pass').value;
+  const name=$('inv-name').value;
+
+  const {data,error}=await sb.auth.signUp({
+    email, password:pass,
+    options:{data:{full_name:name, invite_token:token}}
+  });
+  b.disabled=false; b.textContent='Crear mi cuenta';
+  if(error) return toast(error.message,'error');
+  if(!data.session){toast('Cuenta creada. Revisa tu correo.','success');clearInviteFromUrl();switchAuth('login');return;}
+  toast('¡Bienvenido!','success');
+  clearInviteFromUrl();
+  await bootUser();
+});
+
+// ============================================================
+//  AUTH
+// ============================================================
 $('form-login').addEventListener('submit',async e=>{
   e.preventDefault();
   const b=$('btn-login'); b.disabled=true; b.textContent='Entrando…';
@@ -242,56 +387,82 @@ $('form-login').addEventListener('submit',async e=>{
 $('form-signup').addEventListener('submit',async e=>{
   e.preventDefault();
   const b=$('btn-signup'); b.disabled=true; b.textContent='Creando…';
+  const roleChoice=$('su-role').value;
   const {data,error}=await sb.auth.signUp({
     email:$('su-email').value.trim(),
     password:$('su-pass').value,
-    options:{data:{full_name:$('su-name').value.trim(),phone:$('su-phone').value.trim()}}
+    options:{data:{
+      full_name:$('su-name').value.trim(),
+      phone:$('su-phone').value.trim(),
+      requested_role: roleChoice==='publicador' ? null : roleChoice
+    }}
   });
   b.disabled=false; b.textContent='Crear cuenta';
   if(error) return toast(error.message,'error');
   if(!data.session){toast('Cuenta creada. Revisa tu correo.','success');switchAuth('login');return;}
-  toast('¡Bienvenido!','success');
+  toast(roleChoice==='publicador' ? '¡Bienvenido!' : 'Solicitud enviada. Entras como publicador hasta que sea aprobada.','success');
   await bootUser();
 });
 
 async function logout(){
-  await sb.auth.signOut();
-  me=null; showView('view-login'); $('form-login').reset();
+  try { await sb.auth.signOut(); } catch(e){}
+  me=null; realtimeReady=false; teardownRealtime();
+  showView('view-login'); $('form-login').reset();
 }
 
-// BOOT
+// ============================================================
+//  BOOT
+// ============================================================
 async function bootUser(){
-  showLoader();
-  const {data:{user}}=await sb.auth.getUser();
-  if(!user){hideLoader();showView('view-login');return;}
-  me={id:user.id,email:user.email};
-
-  let {data:profile}=await sb.from('people').select('*').eq('id',user.id).maybeSingle();
-  if(!profile){
-    await sb.from('people').insert({
-      id:user.id,
-      full_name:user.user_metadata.full_name||user.email,
-      email:user.email,
-      phone:user.user_metadata.phone||null
-    });
-    ({data:profile}=await sb.from('people').select('*').eq('id',user.id).single());
-  }
-  me.profile=profile;
-
-  await loadDashboard();
-  initRealtime();
-  hideLoader();
-  showView('view-dashboard');
-
-  if('Notification' in window && Notification.permission==='default'){
-    setTimeout(()=>Notification.requestPermission(),1500);
-  }
+  if(booting) return;
+  booting=true;
+  try {
+    showLoader();
+    const {data:{user}}=await sb.auth.getUser();
+    if(!user){hideLoader();showView('view-login');return;}
+    if(me && me.id===user.id && me.profile){
+      hideLoader(); showView('view-dashboard'); return;
+    }
+    me={id:user.id,email:user.email};
+    let {data:profile}=await sb.from('people').select('*').eq('id',user.id).maybeSingle();
+    if(!profile){
+      await sb.from('people').insert({
+        id:user.id,
+        full_name:user.user_metadata.full_name||user.email,
+        email:user.email,
+        phone:user.user_metadata.phone||null
+      });
+      ({data:profile}=await sb.from('people').select('*').eq('id',user.id).single());
+    }
+    me.profile=profile;
+    await loadDashboard();
+    initRealtime();
+    hideLoader();
+    showView('view-dashboard');
+    if('Notification' in window && Notification.permission==='default'){
+      setTimeout(()=>Notification.requestPermission(),1500);
+    }
+  } catch(err){
+    console.error('bootUser error:',err);
+    hideLoader();
+    toast('Error al iniciar: '+(err?.message||err),'error');
+  } finally { booting=false; }
 }
 
+// ============================================================
+//  DASHBOARD
+// ============================================================
 async function loadDashboard(){
+  if(!me?.profile) return;
   $('user-name').textContent=me.profile.full_name;
   $('user-role').textContent=roleLabel(me.profile.role);
   $('admin-section').style.display=me.profile.role==='admin'?'block':'none';
+
+  const banner=$('pending-banner');
+  if(me.profile.role_request_status==='pendiente' && me.profile.requested_role){
+    $('pending-role-name').textContent=roleLabel(me.profile.requested_role);
+    banner.style.display='block';
+  } else banner.style.display='none';
 
   const {data:asgs,error}=await sb.from('v_upcoming_assignments').select('*').eq('person_id',me.id);
   const list=$('asg-list');
@@ -314,7 +485,6 @@ function renderAsgCard(a){
   else if(dl===1){bc='badge-danger';bt='Mañana';}
   else if(dl<=7){bc='badge-warn';bt='En '+dl+' días';}
   else{bc='badge-info';bt='En '+dl+' días';}
-
   return `<div class="card">
     <div class="card-row">
       <div style="display:flex;gap:14px;align-items:center">
@@ -332,32 +502,31 @@ function renderAsgCard(a){
   </div>`;
 }
 
-// ADMIN
-function switchAdminTab(t){
-  document.querySelectorAll('#view-admin .tab').forEach((el,i)=>{
-    el.classList.toggle('active',(t==='asg'&&i===0)||(t==='people'&&i===1));
+// ============================================================
+//  ADMIN
+// ============================================================
+function loadAdminTab(tab){
+  currentAdminTab=tab;
+  document.querySelectorAll('#view-admin .tab').forEach(el=>{
+    el.classList.toggle('active',el.dataset.tab===tab);
   });
-  $('admin-tab-asg').style.display=t==='asg'?'block':'none';
-  $('admin-tab-people').style.display=t==='people'?'block':'none';
-  t==='asg'?loadAdminAsgs():loadAdminPeople();
+  ['asg','users','req','inv'].forEach(t=>{
+    $('admin-tab-'+t).style.display = t===tab?'block':'none';
+  });
+  if(tab==='asg') loadAdminAsgs();
+  else if(tab==='users') loadAdminUsers();
+  else if(tab==='req') loadAdminRequests();
+  else if(tab==='inv') loadAdminInvitations();
+  updateRequestsBadge();
 }
 
-async function loadAdminPeople(){
-  const {data,error}=await sb.from('people').select('*').order('full_name');
-  if(error) return toast(error.message,'error');
-  profilesCache=data||[];
-  $('admin-people-list').innerHTML=profilesCache.map(p=>`
-    <div class="card">
-      <div class="card-row">
-        <div>
-          <div class="card-title">${esc(p.full_name)}</div>
-          <div class="card-meta">${esc(p.email||'')}</div>
-        </div>
-        <span class="badge badge-neutral">${roleLabel(p.role)}</span>
-      </div>
-    </div>`).join('');
+function onFabClick(){
+  if(currentAdminTab==='asg') openNewAssignment();
+  else if(currentAdminTab==='inv') openInviteModal();
+  else toast('Cambia a la pestaña Asignaciones o Invitaciones para usar el +');
 }
 
+// --- TAB: Asignaciones
 async function loadAdminAsgs(){
   const {data,error}=await sb.from('v_upcoming_assignments').select('*').order('meeting_date');
   if(error) return toast(error.message,'error');
@@ -373,7 +542,6 @@ async function loadAdminAsgs(){
         <button class="btn btn-ghost btn-sm" data-id="${a.id}">Editar</button>
       </div>
     </div>`).join('');
-
   el.querySelectorAll('button[data-id]').forEach(btn=>{
     btn.onclick=()=>{
       const a=data.find(x=>x.id===btn.dataset.id);
@@ -382,6 +550,170 @@ async function loadAdminAsgs(){
   });
 }
 
+// --- TAB: Usuarios
+async function loadAdminUsers(){
+  const {data,error}=await sb.from('people').select('*').order('full_name');
+  if(error) return toast(error.message,'error');
+  profilesCache=data||[];
+  const el=$('admin-users-list');
+  if(!data.length){el.innerHTML='<div class="empty">Sin usuarios</div>';return;}
+  el.innerHTML=data.map(p=>{
+    const isMe=p.id===me.id;
+    return `<div class="card">
+      <div class="card-row">
+        <div>
+          <div class="card-title">${esc(p.full_name)} ${isMe?'<span class="badge badge-info" style="margin-left:6px">Tú</span>':''}</div>
+          <div class="card-meta">${esc(p.email||'')}</div>
+        </div>
+        <span class="badge badge-neutral">${roleLabel(p.role)}</span>
+      </div>
+      <div class="action-row">
+        <select data-uid="${p.id}" ${isMe?'disabled':''} style="flex:1;padding:8px 10px;font-size:13px">
+          <option value="publicador" ${p.role==='publicador'?'selected':''}>Publicador</option>
+          <option value="siervo_ministerial" ${p.role==='siervo_ministerial'?'selected':''}>Siervo ministerial</option>
+          <option value="anciano" ${p.role==='anciano'?'selected':''}>Anciano</option>
+          <option value="admin" ${p.role==='admin'?'selected':''}>Administrador</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" data-change="${p.id}" ${isMe?'disabled':''}>Cambiar</button>
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('button[data-change]').forEach(btn=>{
+    btn.onclick=async ()=>{
+      const uid=btn.dataset.change;
+      const sel=el.querySelector(`select[data-uid="${uid}"]`);
+      const role=sel.value;
+      btn.disabled=true; btn.textContent='...';
+      const {error}=await sb.rpc('admin_set_role',{p_person_id:uid,p_role:role});
+      btn.disabled=false; btn.textContent='Cambiar';
+      if(error) return toast(error.message,'error');
+      toast('Rol actualizado','success');
+      loadAdminUsers();
+    };
+  });
+}
+
+// --- TAB: Solicitudes
+async function loadAdminRequests(){
+  const {data,error}=await sb.from('people')
+    .select('*').eq('role_request_status','pendiente').order('role_request_at',{ascending:true});
+  if(error) return toast(error.message,'error');
+  const el=$('admin-req-list');
+  if(!data||!data.length){
+    el.innerHTML='<div class="empty"><div class="empty-icon">✓</div><p>Sin solicitudes pendientes</p></div>';
+    updateRequestsBadge(); return;
+  }
+  el.innerHTML=data.map(p=>`
+    <div class="card">
+      <div class="card-row">
+        <div>
+          <div class="card-title">${esc(p.full_name)}</div>
+          <div class="card-meta">${esc(p.email||'')}</div>
+          <div class="card-meta" style="margin-top:6px">Solicita: <strong>${roleLabel(p.requested_role)}</strong></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-ghost btn-sm" style="flex:1;color:#b91c1c;border-color:#fecaca" onclick="reviewRequest('${p.id}',false)">Rechazar</button>
+        <button class="btn btn-sm" style="flex:1" onclick="reviewRequest('${p.id}',true)">Aprobar</button>
+      </div>
+    </div>`).join('');
+  updateRequestsBadge();
+}
+
+async function reviewRequest(personId,approve){
+  const {error}=await sb.rpc('review_role_request',{p_person_id:personId,p_approve:approve});
+  if(error) return toast(error.message,'error');
+  toast(approve?'Rol aprobado':'Solicitud rechazada','success');
+  loadAdminRequests();
+}
+
+async function updateRequestsBadge(){
+  if(!me||me.profile?.role!=='admin') return;
+  const {count}=await sb.from('people').select('*',{count:'exact',head:true}).eq('role_request_status','pendiente');
+  const badge=$('req-count');
+  if(count>0){badge.textContent=`(${count})`;badge.style.color='#b91c1c';}
+  else badge.textContent='';
+}
+
+// --- TAB: Invitaciones
+async function loadAdminInvitations(){
+  const {data,error}=await sb.from('invitations').select('*').order('created_at',{ascending:false}).limit(50);
+  if(error) return toast(error.message,'error');
+  const el=$('admin-inv-list');
+  if(!data||!data.length){
+    el.innerHTML='<div class="empty"><div class="empty-icon">🔗</div><p>Sin invitaciones creadas</p><p style="font-size:13px;margin-top:8px">Toca el + para crear la primera</p></div>';
+    return;
+  }
+  el.innerHTML=data.map(inv=>{
+    const expired=new Date(inv.expires_at)<new Date();
+    const used=!!inv.used_at;
+    const status=used?'Usada':expired?'Expirada':'Válida';
+    const badge=used?'badge-neutral':expired?'badge-danger':'badge-success';
+    const link=buildInviteLink(inv.token);
+    return `<div class="card">
+      <div class="card-row">
+        <div>
+          <div class="card-title">${esc(inv.full_name)}</div>
+          <div class="card-meta">${esc(inv.email)} · ${roleLabel(inv.role)}</div>
+        </div>
+        <span class="badge ${badge}">${status}</span>
+      </div>
+      ${!used&&!expired?`<div class="link-box" style="margin-top:12px">${esc(link)}</div>
+        <div class="action-row">
+          <button class="btn btn-ghost btn-sm" style="flex:1" onclick="copyText('${esc(link)}')">📋 Copiar link</button>
+          <button class="btn btn-ghost btn-sm" style="flex:1;color:#b91c1c;border-color:#fecaca" onclick="revokeInvite('${inv.id}')">Revocar</button>
+        </div>`:`<div class="action-row"><button class="btn btn-ghost btn-sm" style="flex:1;color:#b91c1c;border-color:#fecaca" onclick="revokeInvite('${inv.id}')">Eliminar</button></div>`}
+    </div>`;
+  }).join('');
+}
+
+function buildInviteLink(token){
+  const base=location.origin+location.pathname;
+  return base+'?invite='+token;
+}
+
+function openInviteModal(){
+  $('form-inv-create').reset();
+  $('inv-form-wrap').style.display='block';
+  $('inv-result-wrap').style.display='none';
+  $('modal-inv-title').textContent='Nueva invitación';
+  openModal('modal-inv');
+}
+
+$('form-inv-create').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const b=$('btn-create-inv'); b.disabled=true; b.textContent='Generando…';
+  const {data:token,error}=await sb.rpc('create_invitation',{
+    p_email:$('inv-create-email').value.trim(),
+    p_full_name:$('inv-create-name').value.trim(),
+    p_role:$('inv-create-role').value
+  });
+  b.disabled=false; b.textContent='Generar link';
+  if(error) return toast(error.message,'error');
+  lastInviteLink=buildInviteLink(token);
+  $('inv-result-link').textContent=lastInviteLink;
+  $('inv-form-wrap').style.display='none';
+  $('inv-result-wrap').style.display='block';
+  $('modal-inv-title').textContent='Invitación creada';
+  loadAdminInvitations();
+});
+
+function copyInviteLink(){ copyText(lastInviteLink); }
+function copyText(text){
+  navigator.clipboard.writeText(text).then(()=>toast('Copiado al portapapeles','success'))
+    .catch(()=>toast('No se pudo copiar','error'));
+}
+async function revokeInvite(id){
+  if(!confirm('¿Eliminar esta invitación?')) return;
+  const {error}=await sb.rpc('revoke_invitation',{p_id:id});
+  if(error) return toast(error.message,'error');
+  toast('Invitación eliminada','success');
+  loadAdminInvitations();
+}
+
+// ============================================================
+//  FORM ASIGNACIÓN
+// ============================================================
 async function ensurePeopleLoaded(){
   if(profilesCache.length) return;
   const {data}=await sb.from('people').select('*').eq('is_active',true).order('full_name');
@@ -391,9 +723,7 @@ async function ensurePeopleLoaded(){
 async function openNewAssignment(){
   await ensurePeopleLoaded();
   $('modal-asg-title').textContent='Nueva asignación';
-  $('form-asg').reset();
-  $('asg-id').value='';
-  $('asg-room').value='Salón A';
+  $('form-asg').reset(); $('asg-id').value=''; $('asg-room').value='Salón A';
   $('asg-person').innerHTML='<option value="">Selecciona…</option>'+
     profilesCache.map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join('');
   openModal('modal-asg');
@@ -402,11 +732,8 @@ async function openNewAssignment(){
 async function editAsg(a){
   await ensurePeopleLoaded();
   $('modal-asg-title').textContent='Editar asignación';
-  $('asg-id').value=a.id;
-  $('asg-title').value=a.title;
-  $('asg-type').value=a.meeting_type;
-  $('asg-date').value=a.meeting_date;
-  $('asg-time').value=a.meeting_time||'';
+  $('asg-id').value=a.id; $('asg-title').value=a.title; $('asg-type').value=a.meeting_type;
+  $('asg-date').value=a.meeting_date; $('asg-time').value=a.meeting_time||'';
   $('asg-room').value=a.room||'';
   $('asg-person').innerHTML='<option value="">Selecciona…</option>'+
     profilesCache.map(p=>`<option value="${p.id}" ${p.id===a.person_id?'selected':''}>${esc(p.full_name)}</option>`).join('');
@@ -417,14 +744,10 @@ $('form-asg').addEventListener('submit',async e=>{
   e.preventDefault();
   const id=$('asg-id').value;
   const payload={
-    person_id:$('asg-person').value,
-    title:$('asg-title').value.trim(),
-    meeting_type:$('asg-type').value,
-    meeting_date:$('asg-date').value,
-    meeting_time:$('asg-time').value||null,
-    room:$('asg-room').value.trim()||null,
-    notes:$('asg-notes').value.trim()||null,
-    created_by:me.id
+    person_id:$('asg-person').value, title:$('asg-title').value.trim(),
+    meeting_type:$('asg-type').value, meeting_date:$('asg-date').value,
+    meeting_time:$('asg-time').value||null, room:$('asg-room').value.trim()||null,
+    notes:$('asg-notes').value.trim()||null, created_by:me.id
   };
   const b=$('btn-save-asg'); b.disabled=true; b.textContent='Guardando…';
   let error;
@@ -437,34 +760,87 @@ $('form-asg').addEventListener('submit',async e=>{
   loadAdminAsgs();
 });
 
-// REALTIME
-function initRealtime(){
-  sb.channel('asg-changes')
-    .on('postgres_changes',{event:'*',schema:'public',table:'assignments'},payload=>{
-      if(me?.profile?.role==='admin' && $('view-admin').classList.contains('active')) loadAdminAsgs();
-      if(payload.new && payload.new.person_id===me?.id){
-        const t=payload.eventType==='INSERT'?'Nueva asignación':
-                payload.eventType==='UPDATE'?'Asignación actualizada':'Asignación';
-        toast(`${t}: ${payload.new.title}`,'success');
-        if(Notification.permission==='granted'){
-          new Notification(t,{body:payload.new.title});
-        }
-        loadDashboard();
-      }
-    })
-    .subscribe();
+// ============================================================
+//  REALTIME
+// ============================================================
+function teardownRealtime(){
+  realtimeChannels.forEach(ch=>{ try{ sb.removeChannel(ch); }catch(e){} });
+  realtimeChannels=[];
 }
 
-// INIT
-sb.auth.onAuthStateChange(async event=>{
-  if(event==='SIGNED_IN'&&!me) await bootUser();
-  if(event==='SIGNED_OUT'){me=null;showView('view-login');}
+function initRealtime(){
+  if(realtimeReady) return;
+  realtimeReady=true;
+  try{ sb.getChannels().forEach(ch=>{
+    if(ch.topic.includes('asg-changes')||ch.topic.includes('me-changes')||ch.topic.includes('people-changes'))
+      sb.removeChannel(ch);
+  }); }catch(e){}
+
+  const chAsg=sb.channel('asg-changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:'assignments'},payload=>{
+      if(me?.profile?.role==='admin' && $('view-admin').classList.contains('active') && currentAdminTab==='asg') loadAdminAsgs();
+      if(payload.new && payload.new.person_id===me?.id){
+        const t=payload.eventType==='INSERT'?'Nueva asignación':payload.eventType==='UPDATE'?'Asignación actualizada':'Asignación';
+        toast(`${t}: ${payload.new.title}`,'success');
+        if(Notification.permission==='granted') new Notification(t,{body:payload.new.title});
+        loadDashboard();
+      }
+    }).subscribe();
+  realtimeChannels.push(chAsg);
+
+  if(me){
+    const chMe=sb.channel('me-changes-'+me.id)
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'people',filter:`id=eq.${me.id}`},payload=>{
+        if(!payload.new) return;
+        const prevStatus=me.profile.role_request_status;
+        const prevRole=me.profile.role;
+        me.profile={...me.profile,...payload.new};
+        loadDashboard();
+        if(prevStatus==='pendiente' && payload.new.role_request_status==='aprobado' && payload.new.role!==prevRole)
+          toast(`¡Tu rol ${roleLabel(payload.new.role)} fue aprobado!`,'success');
+        if(prevStatus==='pendiente' && payload.new.role_request_status==='rechazado')
+          toast('Tu solicitud de rol fue rechazada','error');
+      }).subscribe();
+    realtimeChannels.push(chMe);
+
+    if(me.profile.role==='admin'){
+      const chPeople=sb.channel('people-changes')
+        .on('postgres_changes',{event:'*',schema:'public',table:'people'},()=>{
+          if($('view-admin').classList.contains('active')){
+            updateRequestsBadge();
+            if(currentAdminTab==='req') loadAdminRequests();
+            if(currentAdminTab==='users') loadAdminUsers();
+          }
+        }).subscribe();
+      realtimeChannels.push(chPeople);
+    }
+  }
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+sb.auth.onAuthStateChange(async (event)=>{
+  if(event==='SIGNED_OUT'){
+    me=null; realtimeReady=false; teardownRealtime();
+    showView('view-login'); return;
+  }
+  if(event==='SIGNED_IN' && !me) await bootUser();
 });
 
 (async function init(){
-  const {data:{session}}=await sb.auth.getSession();
-  if(session){ await bootUser(); }
-  else{ hideLoader(); showView('view-login'); }
+  try{
+    // 1) ¿Viene con token de invitación?
+    if(await tryInviteFlow()) return;
+
+    // 2) Sesión existente
+    const {data:{session}}=await sb.auth.getSession();
+    if(session){ await bootUser(); }
+    else { hideLoader(); showView('view-login'); }
+  }catch(e){
+    console.error('init error:',e);
+    hideLoader(); showView('view-login');
+  }
 })();
 </script>
 </body>
