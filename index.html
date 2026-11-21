@@ -87,6 +87,9 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
 .copy-btn{background:var(--text);color:var(--accent-fg);padding:10px;border-radius:8px;font-size:13px;font-weight:500;width:100%;margin-top:8px}
 .action-row{display:flex;gap:8px;margin-top:12px}
 .action-row .btn{flex:1;margin:0}
+.check-seen      { color:#1d4ed8; font-size:14px; margin-left:4px; letter-spacing:-2px; }
+.check-delivered { color:#71717a; font-size:14px; margin-left:4px; letter-spacing:-2px; }
+.check-pending   { color:#d4d4d8; font-size:14px; margin-left:4px; }
 </style>
 </head>
 <body>
@@ -94,7 +97,7 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
 <div id="loader"><div class="spinner"></div><p>Cargando…</p></div>
 <div id="toast-container"></div>
 
-<!-- BOOTSTRAP (solo si no hay usuarios en el sistema) -->
+<!-- BOOTSTRAP -->
 <div class="view" id="view-bootstrap">
   <div style="padding-top:40px">
     <h1>Bienvenido</h1>
@@ -127,7 +130,7 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
   </div>
 </div>
 
-<!-- PEGAR TOKEN DE INVITACIÓN -->
+<!-- PEGAR TOKEN -->
 <div class="view" id="view-invite-paste">
   <div style="padding-top:40px">
     <h1>Tengo un acceso</h1>
@@ -286,12 +289,20 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
 
 <script>
 // ============================================================
+//  CONFIG
+// ============================================================
 const SUPABASE_URL='https://glgostqeocepewpsqsbm.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsZ29zdHFlb2NlcGV3cHNxc2JtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUyNjUwODQsImV4cCI6MjExMDg0MTA4NH0.pbBk4KZV3TBnU4WXoXFOWD-P4AsZZeGMG_5oXcbS3Z4';
+
+const VAPID_PUBLIC_KEY = 'BIJjPjwCCemKuo2ZIVRIdJT34iPC30mOgxYt7sFt8Ad_QYtJZF_Dry3635m_paLAhmYogcOaJS4cnkz4eJtYAIQ';
+
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
   auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
 });
 
+// ============================================================
+//  ESTADO
+// ============================================================
 let me=null;
 let profilesCache=[];
 let booting=false;
@@ -300,6 +311,7 @@ let realtimeChannels=[];
 let currentAdminTab='asg';
 let lastAccessLink='';
 let lastAccessName='';
+let pushSubscribed=false;
 
 // Helpers
 const $=id=>document.getElementById(id);
@@ -319,7 +331,96 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function roleLabel(r){return({admin:'Administrador',anciano:'Anciano',siervo_ministerial:'Siervo ministerial',publicador:'Publicador'})[r]||r;}
 
 // ============================================================
-//  INVITE FLOW (URL y pegar token)
+//  PUSH (VAPID)
+// ============================================================
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+async function subscribeToPush(){
+  try {
+    if (pushSubscribed) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.warn('[push] navegador sin soporte');
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      console.warn('[push] permiso denegado previamente');
+      return;
+    }
+
+    // 1) Registrar Service Worker
+    const registration = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+
+    // 2) Pedir permiso
+    let permission = Notification.permission;
+    if (permission === 'default') {
+      permission = await Notification.requestPermission();
+    }
+    if (permission !== 'granted') {
+      console.warn('[push] permiso no concedido');
+      return;
+    }
+
+    // 3) Suscripción
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+
+    // 4) Guardar en Supabase
+    const sub = subscription.toJSON();
+    const { error } = await sb.from('push_subscriptions').upsert({
+      person_id: me.id,
+      endpoint: sub.endpoint,
+      p256dh: sub.keys.p256dh,
+      auth: sub.keys.auth,
+      user_agent: navigator.userAgent
+    }, { onConflict: 'endpoint' });
+
+    if (error) { console.warn('[push] upsert error:', error.message); return; }
+
+    pushSubscribed = true;
+    console.log('✅ Push suscrito');
+  } catch (e) {
+    console.warn('[push] no se pudo suscribir:', e?.message || e);
+  }
+}
+
+// ============================================================
+//  RECIBOS DE LECTURA (✓✓)
+// ============================================================
+async function markSeen(assignmentId){
+  if (!me) return;
+  try { await sb.rpc('mark_seen', { p_assignment_id: assignmentId }); } catch(e){}
+}
+
+function observeCardsForSeen(){
+  const cards = document.querySelectorAll('.asg-card[data-asg-id]');
+  if (!cards.length) return;
+  const observer = new IntersectionObserver((entries)=>{
+    entries.forEach((entry)=>{
+      if (entry.isIntersecting) {
+        const id = entry.target.dataset.asgId;
+        if (id) markSeen(id);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.5 });
+  cards.forEach((card) => observer.observe(card));
+}
+
+// ============================================================
+//  INVITE FLOW
 // ============================================================
 function getTokenFromUrl(){
   const p=new URLSearchParams(location.search);
@@ -364,7 +465,6 @@ $('form-invite-paste').addEventListener('submit',async e=>{
   e.preventDefault();
   const raw=$('inv-paste-input').value.trim();
   let token=raw;
-  // Si es URL, extrae el parámetro
   try{
     if(raw.startsWith('http')){
       const url=new URL(raw);
@@ -393,7 +493,7 @@ $('form-invite').addEventListener('submit',async e=>{
 });
 
 // ============================================================
-//  BOOTSTRAP (solo si no hay usuarios)
+//  BOOTSTRAP
 // ============================================================
 $('form-bootstrap').addEventListener('submit',async e=>{
   e.preventDefault();
@@ -427,7 +527,7 @@ $('form-login').addEventListener('submit',async e=>{
 
 async function logout(){
   try { await sb.auth.signOut(); } catch(e){}
-  me=null; realtimeReady=false; teardownRealtime();
+  me=null; realtimeReady=false; pushSubscribed=false; teardownRealtime();
   showView('view-login'); $('form-login').reset();
 }
 
@@ -460,9 +560,8 @@ async function bootUser(){
     initRealtime();
     hideLoader();
     showView('view-dashboard');
-    if('Notification' in window && Notification.permission==='default'){
-      setTimeout(()=>Notification.requestPermission(),1500);
-    }
+
+    subscribeToPush().catch(()=>{});
   } catch(err){
     console.error('bootUser error:',err);
     hideLoader();
@@ -478,6 +577,7 @@ async function loadDashboard(){
   $('user-name').textContent=me.profile.full_name;
   $('user-role').textContent=roleLabel(me.profile.role);
   $('admin-section').style.display=me.profile.role==='admin'?'block':'none';
+
   const banner=$('pending-banner');
   if(me.profile.role_request_status==='pendiente' && me.profile.requested_role){
     $('pending-role-name').textContent=roleLabel(me.profile.requested_role);
@@ -491,7 +591,22 @@ async function loadDashboard(){
     list.innerHTML='<div class="empty"><div class="empty-icon">📅</div><p>No tienes asignaciones próximas</p></div>';
     return;
   }
-  list.innerHTML=asgs.map(renderAsgCard).join('');
+
+  const ids = asgs.map(a => a.id);
+  const {data:receipts} = await sb.from('assignment_receipts').select('*').in('assignment_id', ids);
+  const receiptMap = {};
+  (receipts||[]).forEach(r => {
+    receiptMap[r.assignment_id] = { delivered: !!r.delivered_at, seen: !!r.seen_at };
+  });
+
+  const enriched = asgs.map(a => ({
+    ...a,
+    _delivered: !!receiptMap[a.id]?.delivered,
+    _seen: !!receiptMap[a.id]?.seen
+  }));
+
+  list.innerHTML = enriched.map(renderAsgCard).join('');
+  observeCardsForSeen();
 }
 
 function renderAsgCard(a){
@@ -505,7 +620,14 @@ function renderAsgCard(a){
   else if(dl===1){bc='badge-danger';bt='Mañana';}
   else if(dl<=7){bc='badge-warn';bt='En '+dl+' días';}
   else{bc='badge-info';bt='En '+dl+' días';}
-  return `<div class="card">
+
+  const checkHtml = a._seen
+    ? '<span class="check-seen" title="Visto">✓✓</span>'
+    : a._delivered
+      ? '<span class="check-delivered" title="Entregado">✓✓</span>'
+      : '<span class="check-pending" title="Pendiente">✓</span>';
+
+  return `<div class="card asg-card" data-asg-id="${a.id}">
     <div class="card-row">
       <div style="display:flex;gap:14px;align-items:center">
         <div class="asg-date">
@@ -513,7 +635,7 @@ function renderAsgCard(a){
           <div class="asg-date-month">${month}</div>
         </div>
         <div>
-          <div class="card-title">${esc(a.title)}</div>
+          <div class="card-title">${esc(a.title)} ${checkHtml}</div>
           <div class="card-meta">${esc(a.room||'')}${a.meeting_time?' · '+a.meeting_time.slice(0,5):''}</div>
         </div>
       </div>
@@ -546,31 +668,44 @@ function onFabClick(){
   else toast('Ve a Asignaciones o Accesos para usar el +');
 }
 
-// --- TAB: Asignaciones
 async function loadAdminAsgs(){
-  const {data,error}=await sb.from('v_upcoming_assignments').select('*').order('meeting_date');
+  const {data:asgs,error}=await sb.from('v_upcoming_assignments').select('*').order('meeting_date');
   if(error) return toast(error.message,'error');
+
+  const {data:statuses} = await sb.from('v_assignment_status').select('*');
+  const statusMap = {};
+  (statuses||[]).forEach(s => { statusMap[s.assignment_id] = s; });
+
   const el=$('admin-asg-list');
-  if(!data.length){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>Sin asignaciones</p></div>';return;}
-  el.innerHTML=data.map(a=>`
-    <div class="card">
+  if(!asgs.length){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>Sin asignaciones</p></div>';return;}
+
+  el.innerHTML=asgs.map(a=>{
+    const st = statusMap[a.id];
+    let check = '<span class="check-pending" title="Pendiente">✓</span>';
+    let titleAttr = 'Pendiente';
+    if (st?.status === 'visto') { check='<span class="check-seen" title="Visto">✓✓</span>'; titleAttr='Visto'; }
+    else if (st?.status === 'entregado') { check='<span class="check-delivered" title="Entregado (no visto)">✓✓</span>'; titleAttr='Entregado (no visto)'; }
+    else if (st?.status === 'enviado') { check='<span class="check-pending" title="Enviado">✓</span>'; titleAttr='Enviado'; }
+
+    return `<div class="card">
       <div class="card-row">
         <div>
-          <div class="card-title">${esc(a.title)}</div>
+          <div class="card-title" title="${titleAttr}">${esc(a.title)} ${check}</div>
           <div class="card-meta">${esc(a.full_name)} · ${a.meeting_date}${a.meeting_time?' '+a.meeting_time.slice(0,5):''}</div>
         </div>
         <button class="btn btn-ghost btn-sm" data-id="${a.id}">Editar</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+
   el.querySelectorAll('button[data-id]').forEach(btn=>{
     btn.onclick=()=>{
-      const a=data.find(x=>x.id===btn.dataset.id);
+      const a=asgs.find(x=>x.id===btn.dataset.id);
       if(a) editAsg(a);
     };
   });
 }
 
-// --- TAB: Accesos (invitaciones)
 async function loadAdminAccesses(){
   const {data,error}=await sb.from('invitations').select('*').order('created_at',{ascending:false}).limit(50);
   if(error) return toast(error.message,'error');
@@ -662,7 +797,6 @@ async function revokeAccess(id){
   loadAdminAccesses();
 }
 
-// --- TAB: Usuarios
 async function loadAdminUsers(){
   const {data,error}=await sb.from('people').select('*').order('full_name');
   if(error) return toast(error.message,'error');
@@ -705,7 +839,6 @@ async function loadAdminUsers(){
   });
 }
 
-// --- TAB: Solicitudes
 async function loadAdminRequests(){
   const {data,error}=await sb.from('people')
     .select('*').eq('role_request_status','pendiente').order('role_request_at',{ascending:true});
@@ -808,52 +941,76 @@ function initRealtime(){
   if(realtimeReady) return;
   realtimeReady=true;
   try{ sb.getChannels().forEach(ch=>{
-    if(ch.topic.includes('asg-changes')||ch.topic.includes('me-changes')||ch.topic.includes('people-changes'))
+    if(ch.topic.includes('asg-changes')||ch.topic.includes('me-changes')||
+       ch.topic.includes('people-changes')||ch.topic.includes('receipts-changes')||
+       ch.topic.includes('inv-changes')||ch.topic.includes('asg-admin-changes')||
+       ch.topic.includes('receipts-admin-changes'))
       sb.removeChannel(ch);
   }); }catch(e){}
 
   const chAsg=sb.channel('asg-changes')
-    .on('postgres_changes',{event:'*',schema:'public',table:'assignments'},payload=>{
-      if(me?.profile?.role==='admin' && $('view-admin').classList.contains('active') && currentAdminTab==='asg') loadAdminAsgs();
-      if(payload.new && payload.new.person_id===me?.id){
-        const t=payload.eventType==='INSERT'?'Nueva asignación':payload.eventType==='UPDATE'?'Asignación actualizada':'Asignación';
-        toast(`${t}: ${payload.new.title}`,'success');
-        if(Notification.permission==='granted') new Notification(t,{body:payload.new.title});
+    .on('postgres_changes',
+      {event:'*',schema:'public',table:'assignments',filter:`person_id=eq.${me.id}`},
+      payload=>{
         loadDashboard();
-      }
-    }).subscribe();
+        if(payload.eventType==='INSERT'){
+          toast('Nueva asignación: '+payload.new.title,'success');
+          if(Notification.permission==='granted') new Notification('Nueva asignación',{body:payload.new.title});
+        } else if(payload.eventType==='UPDATE'){
+          toast('Asignación actualizada: '+payload.new.title,'success');
+        }
+      }).subscribe();
   realtimeChannels.push(chAsg);
 
-  if(me){
-    const chMe=sb.channel('me-changes-'+me.id)
-      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'people',filter:`id=eq.${me.id}`},payload=>{
+  const chReceipts=sb.channel('receipts-changes')
+    .on('postgres_changes',
+      {event:'*',schema:'public',table:'assignment_receipts',filter:`person_id=eq.${me.id}`},
+      ()=>loadDashboard()).subscribe();
+  realtimeChannels.push(chReceipts);
+
+  const chMe=sb.channel('me-changes-'+me.id)
+    .on('postgres_changes',
+      {event:'UPDATE',schema:'public',table:'people',filter:`id=eq.${me.id}`},
+      payload=>{
         if(!payload.new) return;
         const prevStatus=me.profile.role_request_status;
         const prevRole=me.profile.role;
         me.profile={...me.profile,...payload.new};
         loadDashboard();
-        if(prevStatus==='pendiente' && payload.new.role_request_status==='aprobado' && payload.new.role!==prevRole)
+        if(prevStatus==='pendiente' && payload.new.role_request_status==='aprobado' && payload.new.role!==prevRole){
           toast(`¡Tu rol ${roleLabel(payload.new.role)} fue aprobado!`,'success');
+        }
       }).subscribe();
-    realtimeChannels.push(chMe);
+  realtimeChannels.push(chMe);
 
-    if(me.profile.role==='admin'){
-      const chPeople=sb.channel('people-changes')
-        .on('postgres_changes',{event:'*',schema:'public',table:'people'},()=>{
-          if($('view-admin').classList.contains('active')){
-            updateRequestsBadge();
-            if(currentAdminTab==='req') loadAdminRequests();
-            if(currentAdminTab==='users') loadAdminUsers();
-          }
-        }).subscribe();
-      realtimeChannels.push(chPeople);
+  if(me.profile.role==='admin'){
+    const chPeople=sb.channel('people-changes')
+      .on('postgres_changes',{event:'*',schema:'public',table:'people'},()=>{
+        if($('view-admin').classList.contains('active')){
+          updateRequestsBadge();
+          if(currentAdminTab==='req') loadAdminRequests();
+          if(currentAdminTab==='users') loadAdminUsers();
+        }
+      }).subscribe();
+    realtimeChannels.push(chPeople);
 
-      const chInv=sb.channel('inv-changes')
-        .on('postgres_changes',{event:'*',schema:'public',table:'invitations'},()=>{
-          if($('view-admin').classList.contains('active') && currentAdminTab==='acc') loadAdminAccesses();
-        }).subscribe();
-      realtimeChannels.push(chInv);
-    }
+    const chInv=sb.channel('inv-changes')
+      .on('postgres_changes',{event:'*',schema:'public',table:'invitations'},()=>{
+        if($('view-admin').classList.contains('active') && currentAdminTab==='acc') loadAdminAccesses();
+      }).subscribe();
+    realtimeChannels.push(chInv);
+
+    const chAsgAdmin=sb.channel('asg-admin-changes')
+      .on('postgres_changes',{event:'*',schema:'public',table:'assignments'},()=>{
+        if($('view-admin').classList.contains('active') && currentAdminTab==='asg') loadAdminAsgs();
+      }).subscribe();
+    realtimeChannels.push(chAsgAdmin);
+
+    const chReceiptsAdmin=sb.channel('receipts-admin-changes')
+      .on('postgres_changes',{event:'*',schema:'public',table:'assignment_receipts'},()=>{
+        if($('view-admin').classList.contains('active') && currentAdminTab==='asg') loadAdminAsgs();
+      }).subscribe();
+    realtimeChannels.push(chReceiptsAdmin);
   }
 }
 
@@ -862,7 +1019,7 @@ function initRealtime(){
 // ============================================================
 sb.auth.onAuthStateChange(async (event)=>{
   if(event==='SIGNED_OUT'){
-    me=null; realtimeReady=false; teardownRealtime();
+    me=null; realtimeReady=false; pushSubscribed=false; teardownRealtime();
     showView('view-login'); return;
   }
   if(event==='SIGNED_IN' && !me) await bootUser();
@@ -870,20 +1027,14 @@ sb.auth.onAuthStateChange(async (event)=>{
 
 (async function init(){
   try{
-    // 1) ¿Viene con token de invitación en URL?
     if(getTokenFromUrl()){ await tryInviteFlow(); return; }
 
-    // 2) Sesión existente
     const {data:{session}}=await sb.auth.getSession();
     if(session){ await bootUser(); return; }
 
-    // 3) ¿Sistema vacío? → bootstrap del admin maestro
     const {data:needsBootstrap}=await sb.rpc('is_bootstrap_needed');
-    if(needsBootstrap===true){
-      hideLoader(); showView('view-bootstrap'); return;
-    }
+    if(needsBootstrap===true){ hideLoader(); showView('view-bootstrap'); return; }
 
-    // 4) Login normal
     hideLoader(); showView('view-login');
   }catch(e){
     console.error('init error:',e);
