@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Asignaciones Teocráticas</title>
 <meta name="theme-color" content="#18181b">
+
+<!-- ================= PWA ================= -->
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Asignaciones">
+<link rel="apple-touch-icon" href="icono.png">
+<!-- ======================================= -->
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
@@ -17,7 +26,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
-body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;font-size:15px;line-height:1.5}
+body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;font-size:15px;line-height:1.5; padding-bottom: env(safe-area-inset-bottom);}
 #loader{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:1000;transition:opacity .35s}
 #loader.hidden{opacity:0;pointer-events:none}
 .spinner{width:32px;height:32px;border:2.5px solid var(--line);border-top-color:var(--text);border-radius:50%;animation:spin .8s linear infinite}
@@ -407,6 +416,17 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function roleLabel(r){return({admin:'Administrador',anciano:'Anciano',siervo_ministerial:'Siervo ministerial',publicador:'Publicador'})[r]||r;}
 
 // ============================================================
+//  PWA - REGISTRO DEL SERVICE WORKER
+// ============================================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js', { scope: './' })
+      .then(reg => console.log('✅ Service Worker registrado para PWA'))
+      .catch(err => console.error('❌ Error registrando SW:', err));
+  });
+}
+
+// ============================================================
 //  PUSH
 // ============================================================
 function urlBase64ToUint8Array(base64String) {
@@ -424,8 +444,7 @@ async function subscribeToPush(){
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
     if (Notification.permission === 'denied') return;
 
-    const registration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
-    await navigator.serviceWorker.ready;
+    const registration = await navigator.serviceWorker.ready;
 
     let permission = Notification.permission;
     if (permission === 'default') permission = await Notification.requestPermission();
