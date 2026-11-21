@@ -254,14 +254,7 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
     <button class="menu-btn" onclick="showView('view-dashboard')">Volver</button>
   </div>
 
-  <!-- Botón Instalar PWA -->
-  <div class="settings-card" id="pwa-card" style="display:none">
-    <div class="settings-card-title">📱 Instalar Aplicación</div>
-    <div class="settings-card-desc">Instala la app en tu pantalla de inicio para acceder más rápido y a pantalla completa.</div>
-    <button class="settings-btn primary" id="btn-install-pwa" onclick="installPwa()">Instalar App</button>
-  </div>
-
-  <!-- Tarjeta Push (Movida aquí) -->
+  <!-- Tarjeta Push (Ahora va primero) -->
   <div id="push-card" class="settings-card" style="display:none">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
       <div id="push-icon" style="font-size:20px">🔔</div>
@@ -271,6 +264,13 @@ button{font-family:inherit;cursor:pointer;border:none;transition:all .15s}
       </div>
     </div>
     <button class="settings-btn" id="push-btn" style="margin-top:12px">…</button>
+  </div>
+
+  <!-- Botón Instalar PWA (Ahora va segundo) -->
+  <div class="settings-card" id="pwa-card" style="display:none">
+    <div class="settings-card-title">📱 Instalar Aplicación</div>
+    <div class="settings-card-desc" id="pwa-desc">Instala la app en tu pantalla de inicio para acceder más rápido y a pantalla completa.</div>
+    <button class="settings-btn primary" id="btn-install-pwa" onclick="installPwa()">Instalar App</button>
   </div>
 
   <!-- Info de iOS -->
@@ -463,6 +463,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 
 window.addEventListener('appinstalled', () => {
   $('pwa-card').style.display = 'none';
+  $('ios-install-hint').style.display = 'none';
   deferredPrompt = null;
   toast('App instalada con éxito', 'success');
 });
@@ -470,8 +471,11 @@ window.addEventListener('appinstalled', () => {
 function checkPwaInstallability() {
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
   const pwaCard = $('pwa-card');
+  const pwaBtn = $('btn-install-pwa');
+  const pwaDesc = $('pwa-desc');
   const iosHint = $('ios-install-hint');
   
+  // Si ya está instalada, ocultar la tarjeta
   if (isStandalone) {
     pwaCard.style.display = 'none';
     iosHint.style.display = 'none';
@@ -486,22 +490,41 @@ function checkPwaInstallability() {
     return;
   }
 
-  // Si no es iOS, mostrar el botón si el navegador lo soporta
+  // Si no está instalada y no es iOS, mostrar la tarjeta
+  pwaCard.style.display = 'flex';
+  iosHint.style.display = 'none';
+
+  // Verificar si el navegador tiene listo el prompt nativo
   if (deferredPrompt) {
-    pwaCard.style.display = 'block';
+    pwaBtn.textContent = 'Instalar App';
+    pwaDesc.textContent = 'Instala la app en tu pantalla de inicio para acceder más rápido y a pantalla completa.';
   } else {
-    pwaCard.style.display = 'none';
+    // Fallback: El navegador no ha disparado el evento, mostrar instrucciones
+    pwaBtn.textContent = 'Cómo instalar manualmente';
+    pwaDesc.textContent = 'Tu navegador no muestra el botón automático. Puedes instalarla manualmente desde el menú.';
   }
 }
 
 async function installPwa() {
-  if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  const { outcome } = await deferredPrompt.userChoice;
-  if (outcome === 'accepted') {
-    $('pwa-card').style.display = 'none';
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      $('pwa-card').style.display = 'none';
+    }
+    deferredPrompt = null;
+  } else {
+    // Instrucciones manuales si no está el prompt
+    const esEdge = navigator.userAgent.includes("Edg");
+    const esChrome = navigator.userAgent.includes("Chrome");
+    let msg = "Para instalar esta aplicación:\n\n";
+    if (esEdge || esChrome) {
+      msg += "1. Haz clic en los 3 puntos (o el icono de instalar) en la barra superior del navegador.\n2. Busca la opción 'Instalar aplicación' o 'Aplicaciones'.\n3. Confirma la instalación.";
+    } else {
+      msg += "Abre el menú de tu navegador y busca la opción 'Instalar aplicación' o 'Añadir a pantalla de inicio'.";
+    }
+    alert(msg);
   }
-  deferredPrompt = null;
 }
 
 // ============================================================
