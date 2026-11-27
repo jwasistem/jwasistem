@@ -1,5 +1,5 @@
 // sw.js — Service Worker para Push y PWA
-const SW_VERSION = '1.1.0';
+const SW_VERSION = '1.1.1';
 
 self.addEventListener('install', (event) => {
   console.log('[SW] install', SW_VERSION);
@@ -31,8 +31,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Asignación teocrática';
   const options = {
     body: data.body || 'Tienes una asignación pendiente',
-    icon: data.icon || './icono.png', // Usa tu ícono
-    badge: data.badge || './icono.png',
+    icon: data.icon || './icon.png',   // ✅ Corregido: coincidir con manifest y HTML
+    badge: data.badge || './icon.png', // ✅ Corregido
     tag: data.tag || 'asg-' + Date.now(),
     data: data.data || { url: './' },
     requireInteraction: false
